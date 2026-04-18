@@ -4,7 +4,7 @@ import {
   DollarSign, Printer, ChevronRight, ClipboardList, ShieldCheck, 
   HardHat, Construction, Info, CheckSquare, Download, Image as ImageIcon,
   Stamp, Briefcase, Ruler, PenTool, AlertCircle, ChevronDown, ChevronUp,
-  Camera, FileDown, Upload, TrendingUp, Scale
+  Camera, FileDown, Upload, TrendingUp, Scale, ArrowRight
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
@@ -30,7 +30,8 @@ declare global {
 
 // --- CONFIGURATION ---
 const getAIClient = () => {
-    const key = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    const key = localStorage.getItem('phoxanh_api_key') || process.env.API_KEY || process.env.GEMINI_API_KEY;
+    if (!key) throw new Error("Vui lòng nhập API Key để sử dụng");
     return new GoogleGenAI({ apiKey: key });
 };
 
@@ -91,6 +92,53 @@ const downloadTxtFile = (title: string, content: string) => {
 };
 
 // --- COMPONENTS & TEMPLATES ---
+
+const LoginScreen = ({ onLogin }: { onLogin: (key: string) => void }) => {
+    const [key, setKey] = useState('');
+    
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (key.trim()) {
+            onLogin(key.trim());
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full border border-slate-100 animate-in fade-in zoom-in-95 duration-500">
+                <div className="flex justify-center mb-6">
+                    <div className="bg-sky-50 p-5 rounded-full border-4 border-white shadow-sm">
+                        <HardHat size={56} className="text-[#0ea5e9]" />
+                    </div>
+                </div>
+                <h1 className="text-2xl font-black text-center uppercase tracking-tight text-[#0c4a6e] mb-2 leading-none">PHỐ XANH <span className="text-sky-500">AI</span></h1>
+                <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest text-center mb-8">Hệ Thống Quản Trị Nhà Thầu 5.0</p>
+                
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
+                        <label className="block text-[11px] font-bold uppercase text-slate-700 mb-2">Google Gemini API Key</label>
+                        <input 
+                            type="password" 
+                            required 
+                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent font-mono text-sm transition-all"
+                            placeholder="AIzaSy..."
+                            value={key}
+                            onChange={e => setKey(e.target.value)}
+                        />
+                        <p className="text-xs text-slate-500 mt-2">Mã khóa này được lưu trữ an toàn trên trình duyệt của bạn và dùng để kết nối trực tiếp với máy chủ Google.</p>
+                    </div>
+                    <button type="submit" className="w-full h-14 bg-[#0c4a6e] hover:bg-black text-white font-black rounded-xl transition-all shadow-lg hover:shadow-xl uppercase tracking-wider text-sm flex justify-center items-center gap-2">
+                        <span>Đăng nhập hệ thống</span>
+                        <ArrowRight size={18} />
+                    </button>
+                    <div className="text-center">
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-xs text-sky-600 font-bold hover:underline">Nhận API Key miễn phí tại đây</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 const PriceQuoteTemplate = React.forwardRef(({ data }: {data: any}, ref: any) => {
     const basicArea = Number(data.area) || 0;
@@ -337,6 +385,7 @@ const DocumentTemplate = React.forwardRef(({ data }: {data: any}, ref: any) => {
 // --- MAIN APP ---
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('phoxanh_api_key'));
   const [user, setUser] = useState<any>(null);
   const [view, setView] = useState('home');
   const [loading, setLoading] = useState(false);
@@ -388,6 +437,13 @@ export default function App() {
     } catch (e) { console.error("Firebase Init Error:", e); }
     */
   }, []);
+
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={(key) => {
+        localStorage.setItem('phoxanh_api_key', key);
+        setIsAuthenticated(true);
+    }} />
+  }
 
   const handleExportImage = async () => {
     setExporting(true);
@@ -857,7 +913,10 @@ Chỉ trả về JSON, không giải thích thêm.`,
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-sky-200">
-      <Header currentUser={user} />
+      <Header currentUser={user} onLogout={() => {
+          localStorage.removeItem('phoxanh_api_key');
+          setIsAuthenticated(false);
+      }} />
       
       <div className="bg-white border-b border-slate-200 sticky top-[68px] z-40 no-print">
         <div className="container mx-auto flex overflow-x-auto scrollbar-hide">
@@ -1239,15 +1298,7 @@ Chỉ trả về JSON, không giải thích thêm.`,
   );
 }
 
-const Header = ({ currentUser }: {currentUser: any}) => {
-  const handleSetupKey = async () => {
-    if (window.aistudio && window.aistudio.openSelectKey) {
-      await window.aistudio.openSelectKey();
-    } else {
-      alert("Tính năng chọn API Key không khả dụng trong môi trường này.");
-    }
-  };
-
+const Header = ({ currentUser, onLogout }: {currentUser: any, onLogout: () => void}) => {
   return (
   <nav className="bg-[#0c4a6e] text-white p-4 sticky top-0 z-50 shadow-lg no-print">
     <div className="container mx-auto flex justify-between items-center">
@@ -1259,13 +1310,15 @@ const Header = ({ currentUser }: {currentUser: any}) => {
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <button 
-          onClick={handleSetupKey}
-          className="hidden md:block px-4 py-2 bg-sky-600/30 hover:bg-sky-600/50 rounded-xl text-xs font-bold transition-all border border-sky-400/30"
-          title="Sử dụng API Key riêng để dùng các mô hình nâng cao"
-        >
-          Cấu hình API Key
-        </button>
+        {localStorage.getItem('phoxanh_api_key') && (
+          <button 
+            onClick={onLogout}
+            className="hidden md:block px-4 py-2 bg-red-600/20 hover:bg-red-600/40 rounded-xl text-xs font-bold transition-all border border-red-400/30 text-red-100"
+            title="Đăng xuất và xóa API Key"
+          >
+            Đăng xuất
+          </button>
+        )}
         {currentUser && (
           <div className="hidden md:flex bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl text-[10px] border border-white/10 text-white font-bold items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
